@@ -1,41 +1,52 @@
-﻿using System;
-using Microsoft.AspNetCore.Hosting;
+﻿using System.IO;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 
 namespace ConsoleApplication
 {
- public class Startup
-{
-    public void Configure(IApplicationBuilder app)
+  public class GrettingService
+  {
+
+  }
+  public class Startup
+  {
+    public Startup(IHostingEnvironment env)
     {
-        
-        var routeBuilder = new RouteBuilder(app);
-        
-        routeBuilder.MapGet("", context => context.Response.WriteAsync("Hello from root!"));
-        routeBuilder.MapGet("hello", context => context.Response.WriteAsync("Hello from /hello"));
-        routeBuilder.MapGet("hello/{name}", context => context.Response
-                                                              .WriteAsync($"Hello, {context.GetRouteValue("name")}"));
+      var configurationBuilder = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("greetings.json", optional: false, reloadOnChange: true);
 
-        routeBuilder.MapGet("square/{number:int}", context =>
-        {
-            int number = Convert.ToInt32(context.GetRouteValue("number"));
-            return context.Response.WriteAsync($"The square of {number} is {number * number}");
-        });
-
-        routeBuilder.MapPost("post", context => context.Response.WriteAsync("Posting!"));
-
-        app.UseRouter(routeBuilder.Build());
-
+      Configuration = configurationBuilder.Build();
     }
-
+    public IConfiguration Configuration { get; set; }
     public void ConfigureServices(IServiceCollection services)
     {
-        services.AddRouting();
+      services.AddRouting();
     }
-}
+    public void Configure(IApplicationBuilder app)
+    {
+      var routeBuilder = new RouteBuilder(app);
+      routeBuilder.MapGet("{route}", context =>
+      {
+        var routeMessage = Configuration.AsEnumerable()
+            .FirstOrDefault(r => r.Key == context.GetRouteValue("route")
+            .ToString())
+            .Value;
+        var defaultMessage = Configuration.AsEnumerable()
+                .FirstOrDefault(r => r.Key == "default")
+                .Value;
+        var response = (routeMessage != null) ? routeMessage : defaultMessage;
+
+        return context.Response.WriteAsync(response);
+      });
+      app.UseRouter(routeBuilder.Build());
+    }
+  }
 
   public class Program
   {
